@@ -1,13 +1,13 @@
 import RigidBody from "../physics/RigidBody";
-import Vector3 from "../math/Vector3";
-import JMath3D from "../JMath3D";
+import Vector3 from "../../math/Vector3";
+import JConfig from "../JConfig";
 
 export default class JPlane extends RigidBody {
     constructor(initNormal) {
         super();
         this._type = "PLANE";
-        this._initNormal = initNormal ? initNormal.clone() : new Vector3(0, 0, -1);
-        this._normal = this._initNormal.clone();
+        this._initNormal = initNormal ? new Vector3(initNormal) : new Vector3(0, 0, -1);
+        this._normal = new Vector3(this._initNormal);
         this._distance = 0;
         this._movable = false;
     }
@@ -16,12 +16,8 @@ export default class JPlane extends RigidBody {
         return this._normal;
     }
 
-    getDistance() {
-        return this._distance;
-    }
-
     pointPlaneDistance(pt) {
-        return this._normal.dot(pt) - this._distance;
+        return Vector3.dot(this._normal, pt) - this._distance;
     }
 
     segmentIntersect(out, seg, state) {
@@ -29,9 +25,9 @@ export default class JPlane extends RigidBody {
         out.position = new Vector3();
         out.normal = new Vector3();
 
-        const denom = this._normal.dot(seg.delta);
-        if (Math.abs(denom) > JMath3D.NUM_TINY) {
-            const t = -1 * (this._normal.dot(seg.origin) - this._distance) / denom;
+        const denom = Vector3.dot(this._normal, seg.direction);
+        if (Math.abs(denom) > JConfig.NUM_TINY) {
+            const t = -1 * (Vector3.dot(this._normal, seg.origin) - this._distance) / denom;
             if (t < 0 || t > 1) {
                 return false;
             } else {
@@ -48,7 +44,7 @@ export default class JPlane extends RigidBody {
 
     updateState() {
         RigidBody.prototype.updateState.call(this);
-        this._normal = this._currState.orientation.transformVector(this._initNormal);
-        this._distance = this._currState.position.dot(this._normal);
+        this._normal = new Vector3(this._initNormal).transform(this._currState.orientation);
+        this._distance = Vector3.dot(this._currState.position, this._normal);
     }
 }

@@ -1,6 +1,5 @@
-import Vector3 from "../math/Vector3";
+import Vector3 from "../../math/Vector3";
 import CollisionInfo from "../collision/CollisionInfo";
-import JMath3D from "../JMath3D";
 import JConfig from "../JConfig";
 
 export default class PhysicsSystem {
@@ -13,11 +12,8 @@ export default class PhysicsSystem {
         this._bodies = [];
         this._activeBodies = [];
         this._collisions = [];
-        this._constraints = [];
-        this._controllers = [];
-        this._cachedContacts = [];
         this._collisionSystem = null;
-        this.setGravity(new Vector3(0, Vector3.Y_AXIS.y * -10, 0));
+        this.setGravity(new Vector3(new Vector3(0, -10, 0)));
     }
 
     setCollisionSystem(coll) {
@@ -43,11 +39,11 @@ export default class PhysicsSystem {
 
         this._detectAllCollisions(dt);
 
-        this._handleAllConstraints(dt, JConfig.numCollisionIterations, false);
+        this._handleAllConstraints(dt, JConfig.NUM_COLLISION_ITERATIONS, false);
 
         this._updateAllVelocities(dt);
 
-        this._handleAllConstraints(dt, JConfig.numContactIterations, true);
+        this._handleAllConstraints(dt, JConfig.NUM_CONTACT_ITERATIONS, true);
 
         this._dampAllActiveBodies();
 
@@ -79,7 +75,7 @@ export default class PhysicsSystem {
         if (Math.abs(gravity.y) > Math.abs(gravity.z)) {
             this._gravityAxis = 1;
         }
-        const gravityArray = [gravity.x, gravity.y, gravity.z];
+        const gravityArray = [ gravity.x, gravity.y, gravity.z ];
         if (Math.abs(gravity.z) > Math.abs(gravityArray[this._gravityAxis])) {
             this._gravityAxis = 2;
         }
@@ -114,30 +110,6 @@ export default class PhysicsSystem {
         }
     }
 
-    addConstraint(constraint) {
-        if (this._constraints.indexOf(constraint) < 0) {
-            this._constraints.push(constraint);
-        }
-    }
-
-    removeConstraint(constraint) {
-        if (this._constraints.indexOf(constraint) > -1) {
-            this._constraints.splice(this._constraints.indexOf(constraint), 1);
-        }
-    }
-
-    addController(controller) {
-        if (this._controllers.indexOf(controller) < 0) {
-            this._controllers.push(controller);
-        }
-    }
-
-    removeController(controller) {
-        if (this._controllers.indexOf(controller) > -1) {
-            this._controllers.splice(this._controllers.indexOf(controller), 1);
-        }
-    }
-
     _findAllActiveBodies() {
         this._activeBodies.length = 0;
         let i = 0;
@@ -150,26 +122,17 @@ export default class PhysicsSystem {
     }
 
     _handleAllConstraints(dt, iter, forceInelastic) {
-        const collisions = this._collisions;
-        const constraints = this._constraints;
-        let origNumCollisions = collisions.length;
-        const numConstraints = constraints.length;
-
-        for (let i = 0; i < numConstraints; ++i) {
-            constraints[i].preApply(dt);
-        }
-
+        let origNumCollisions = this._collisions.length;
 
         if (forceInelastic) {
             for (let i = 0; i < origNumCollisions; ++i) {
-                this._preProcessCollision(collisions[i], dt);
-                collisions[i].mat.restitution = 0;
-                collisions[i].satisfied = false;
+                this._preProcessCollision((this._collisions)[i], dt);
+                (this._collisions)[i].mat.restitution = 0;
+                (this._collisions)[i].satisfied = false;
             }
         } else {
-
             for (let i = 0; i < origNumCollisions; ++i) {
-                this._preProcessCollision(collisions[i], dt);
+                this._preProcessCollision((this._collisions)[i], dt);
             }
         }
 
@@ -178,44 +141,35 @@ export default class PhysicsSystem {
         for (let step = 0; step < iter; ++step) {
             let gotOne = false;
 
-            let numCollisions = collisions.length;
+            let numCollisions = this._collisions.length;
             dir = !dir;
             for (let i = dir ? 0 : numCollisions - 1; i >= 0 && i < numCollisions; dir ? ++i : --i) {
-                if (!collisions[i].satisfied) {
+                if (!(this._collisions)[i].satisfied) {
                     if (forceInelastic) {
-                        gotOne |= this._processCollision(collisions[i]);
+                        gotOne |= this._processCollision((this._collisions)[i]);
                     } else {
-                        gotOne |= this._processCollision(collisions[i]);
+                        gotOne |= this._processCollision((this._collisions)[i]);
                     }
                 }
             }
 
-            for (let i = 0; i < numConstraints; ++i) {
-                if (!constraints[i].satisfied) {
-                    gotOne |= constraints[i].apply(dt);
-                }
-            }
-
-
             this._tryToActivateAllFrozenObjects();
 
-
-            numCollisions = collisions.length;
-
+            numCollisions = this._collisions.length;
 
             if (forceInelastic) {
                 for (let i = origNumCollisions; i < numCollisions; ++i) {
-                    collisions[i].mat.restitution = 0;
-                    collisions[i].satisfied = false;
-                    this._preProcessCollision(collisions[i], dt);
+                    (this._collisions)[i].mat.restitution = 0;
+                    (this._collisions)[i].satisfied = false;
+                    this._preProcessCollision((this._collisions)[i], dt);
                 }
             } else {
                 for (let i = origNumCollisions; i < numCollisions; ++i) {
-                    this._preProcessCollision(collisions[i], dt);
+                    this._preProcessCollision((this._collisions)[i], dt);
                 }
             }
 
-            origNumCollisions = collisions.length;
+            origNumCollisions = this._collisions.length;
             if (!gotOne) {
                 break;
             }
@@ -223,18 +177,18 @@ export default class PhysicsSystem {
     }
 
     collisionNotify(collDetectInfo, dirToBody0, pointInfos, numPointInfos) {
+        const info = CollisionInfo.getCollisionInfo(collDetectInfo, new Vector3(-dirToBody0.x, -dirToBody0.y, -dirToBody0.z), pointInfos, numPointInfos);
         if (collDetectInfo.body0 && collDetectInfo.body0) {
-            let info = CollisionInfo.getCollisionInfo(collDetectInfo, dirToBody0, pointInfos, numPointInfos);
+            const info = CollisionInfo.getCollisionInfo(collDetectInfo, dirToBody0, pointInfos, numPointInfos);
             this._collisions.push(info);
             collDetectInfo.body0.getCollisions().push(info);
-            if (collDetectInfo.body1 && (collDetectInfo.body1)) {
+            if (collDetectInfo.body1 && collDetectInfo.body1) {
                 collDetectInfo.body1.getCollisions().push(info);
             }
         } else if (collDetectInfo.body1 && collDetectInfo.body1) {
-            let info = CollisionInfo.getCollisionInfo(collDetectInfo, dirToBody0.clone().scaleBy(-1), pointInfos, numPointInfos);
             this._collisions.push(info);
             collDetectInfo.body1.getCollisions().push(info);
-            if (collDetectInfo.body0 && (collDetectInfo.body0)) {
+            if (collDetectInfo.body0 && collDetectInfo.body0) {
                 collDetectInfo.body0.getCollisions().push(info);
             }
         } else {
@@ -247,12 +201,6 @@ export default class PhysicsSystem {
         const numBodies = bodies.length;
         for (let i = 0; i < numBodies; ++i) {
             bodies[i].addExternalForces(dt);
-        }
-
-        const controllers = this._controllers;
-        const numControllers = controllers.length;
-        for (let i = 0; i < numControllers; ++i) {
-            controllers[i].updateController(dt);
         }
     }
 
@@ -314,7 +262,7 @@ export default class PhysicsSystem {
             }
         }
 
-        this._collisionSystem.detectAllCollisions(activeBodies, this, JConfig.collToll);
+        this._collisionSystem.detectAllCollisions(activeBodies, this, JConfig.COLL_TOLL);
 
         const rnd = Math.random;
 
@@ -418,11 +366,11 @@ export default class PhysicsSystem {
         const body1 = collision.collInfo.body1;
         const N = collision.dirToBody;
 
-        const timescale = JConfig.numPenetrationRelaxationTimeSteps * dt;
+        const timescale = JConfig.NUM_PENETRATION_RELAXATION_TIME_STEPS * dt;
         let approachScale = 0;
         let ptInfo;
         let tempV;
-        const allowedPenetration = JConfig.allowedPenetration;
+        const allowedPenetration = JConfig.ALLOWED_PENETRATION;
 
         let i = 0;
         const len = collision.pointInfo.length;
@@ -432,31 +380,29 @@ export default class PhysicsSystem {
             if (!body0.getMovable()) {
                 ptInfo.denominator = 0;
             } else {
-                tempV = ptInfo.r0.cross(N);
-                body0.getWorldInvInertia().transformSelfVector(tempV);
-                ptInfo.denominator = body0.getInvMass() + N.dot(tempV.cross(ptInfo.r0));
+                tempV = Vector3.cross(ptInfo.r0, N).transform(body0.getWorldInvInertia());
+                ptInfo.denominator = body0.getInvMass() + Vector3.dot(N, Vector3.cross(tempV, ptInfo.r0));
             }
 
             if (body1.getMovable()) {
-                tempV = ptInfo.r1.cross(N);
-                body1.getWorldInvInertia().transformSelfVector(tempV);
-                ptInfo.denominator += body1.getInvMass() + N.dot(tempV.cross(ptInfo.r1));
+                tempV = Vector3.cross(ptInfo.r1, N).transform(body1.getWorldInvInertia());
+                ptInfo.denominator += body1.getInvMass() + Vector3.dot(N, Vector3.cross(tempV, ptInfo.r1));
             }
 
-            if (ptInfo.denominator < JMath3D.NUM_TINY) {
-                ptInfo.denominator = JMath3D.NUM_TINY;
+            if (ptInfo.denominator < JConfig.NUM_TINY) {
+                ptInfo.denominator = JConfig.NUM_TINY;
             }
 
             if (ptInfo.initialPenetration > allowedPenetration) {
                 ptInfo.minSeparationVel = (ptInfo.initialPenetration - allowedPenetration) / timescale;
             } else {
                 approachScale = -0.1 * (ptInfo.initialPenetration - allowedPenetration) / allowedPenetration;
-                if (approachScale < JMath3D.NUM_TINY) {
-                    approachScale = JMath3D.NUM_TINY;
+                if (approachScale < JConfig.NUM_TINY) {
+                    approachScale = JConfig.NUM_TINY;
                 } else if (approachScale > 1) {
                     approachScale = 1;
                 }
-                const max = (dt > JMath3D.NUM_TINY) ? dt : JMath3D.NUM_TINY;
+                const max = dt > JConfig.NUM_TINY ? dt : JConfig.NUM_TINY;
                 ptInfo.minSeparationVel = approachScale * (ptInfo.initialPenetration - allowedPenetration) / max;
             }
 
@@ -484,9 +430,9 @@ export default class PhysicsSystem {
             let normalVel = 0;
 
             if (body1) {
-                normalVel = body0.getVelocity(ptInfo.r0).subtract(body1.getVelocity(ptInfo.r1)).dot(N);
+                normalVel = Vector3.dot(body0.getVelocity(ptInfo.r0).minus(body1.getVelocity(ptInfo.r1)), N);
             } else {
-                normalVel = body0.getVelocity(ptInfo.r0).dot(N);
+                normalVel = Vector3.dot(body0.getVelocity(ptInfo.r0), N);
             }
 
             if (normalVel > ptInfo.minSeparationVel) {
@@ -510,39 +456,37 @@ export default class PhysicsSystem {
 
 
             gotOne = true;
-            impulse.copy(N).scaleBy(normalImpulse);
+            impulse.copy(N).scale(normalImpulse);
             body0.applyBodyWorldImpulse(impulse, ptInfo.r0);
-            body1.applyBodyWorldImpulse(impulse.scaleBy(-1), ptInfo.r1);
+            body1.applyBodyWorldImpulse(impulse.scale(-1), ptInfo.r1);
 
 
             let tempV;
-            let Vr_new = body0.getVelocity(ptInfo.r0).clone();
+            let Vr_new = new Vector3(body0.getVelocity(ptInfo.r0));
             if (body1) {
-                Vr_new = Vr_new.subtract(body1.getVelocity(ptInfo.r1));
+                Vr_new = Vr_new.minus(body1.getVelocity(ptInfo.r1));
             }
 
-            const vrDotN = Vr_new.dot(N);
-            const tangent_vel = Vr_new.subtract(new Vector3().copy(N).scaleBy(vrDotN));
-            const tangent_speed = tangent_vel.getLength();
+            const vrDotN = Vector3.dot(Vr_new, N);
+            const tangent_vel = Vr_new.minus(new Vector3().copy(N).scale(vrDotN));
+            const tangent_speed = tangent_vel.length;
 
             if (tangent_speed > this._minVelForProcessing) {
-                T.copy(tangent_vel).scaleBy(-1 / tangent_speed);
+                T.copy(tangent_vel).scale(-1 / tangent_speed);
 
                 let denominator = 0;
 
                 if (!body0.getImmovable()) {
-                    tempV = ptInfo.r0.cross(T);
-                    body0.getWorldInvInertia().transformSelfVector(tempV);
-                    denominator = body0.getInvMass() + T.dot(tempV.cross(ptInfo.r0));
+                    tempV = Vector3.cross(ptInfo.r0, T).transform(body0.getWorldInvInertia());
+                    denominator = body0.getInvMass() + Vector3.dot(T, Vector3.cross(tempV, ptInfo.r0));
                 }
 
                 if (body1 && !body1.getImmovable()) {
-                    tempV = ptInfo.r1.cross(T);
-                    body1.getWorldInvInertia().transformSelfVector(tempV);
-                    denominator += body1.getInvMass() + T.dot(tempV.cross(ptInfo.r1));
+                    tempV = Vector3.cross(ptInfo.r1, T).transform(body1.getWorldInvInertia());
+                    denominator += body1.getInvMass() + Vector3.dot(T, Vector3.cross(tempV, ptInfo.r1));
                 }
 
-                if (denominator > JMath3D.NUM_TINY) {
+                if (denominator > JConfig.NUM_TINY) {
                     const impulseToReverse = tangent_speed / denominator;
 
                     const impulseFromNormalImpulse = collision.mat.staticFriction * normalImpulse;
@@ -553,17 +497,15 @@ export default class PhysicsSystem {
                         frictionImpulse = collision.mat.dynamicFriction * normalImpulse;
                     }
 
-                    T = T.scaleBy(frictionImpulse);
+                    T = T.scale(frictionImpulse);
                     body0.applyBodyWorldImpulse(T, ptInfo.r0);
-                    body1.applyBodyWorldImpulse(T.scaleBy(-1), ptInfo.r1);
+                    body1.applyBodyWorldImpulse(T.scale(-1), ptInfo.r1);
                 }
             }
         }
         if (gotOne) {
             body0.setConstraintsAndCollisionsUnsatisfied();
-            if (body1) {
-                body1.setConstraintsAndCollisionsUnsatisfied();
-            }
+            if (body1) body1.setConstraintsAndCollisionsUnsatisfied();
         }
         return gotOne;
     }

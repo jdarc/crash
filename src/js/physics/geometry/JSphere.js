@@ -1,6 +1,6 @@
 import RigidBody from "../physics/RigidBody";
-import Matrix44 from "../math/Matrix44";
-import Vector3 from "../math/Vector3";
+import Matrix4 from "../../math/Matrix4";
+import Vector3 from "../../math/Vector3";
 
 export default class JSphere extends RigidBody {
     constructor(r) {
@@ -13,11 +13,11 @@ export default class JSphere extends RigidBody {
         this.updateBoundingBox();
     }
 
-    get_radius() {
+    get radius() {
         return this._radius;
     }
 
-    set_radius(r) {
+    set radius(r) {
         this._radius = r;
         this._boundingSphere = this._radius;
         this.setInertia(this.getInertiaProperties(this.getMass()));
@@ -31,21 +31,21 @@ export default class JSphere extends RigidBody {
         out.position = new Vector3();
         out.normal = new Vector3();
 
-        const r = seg.delta;
-        const s = seg.origin.subtract(state.position);
+        const r = seg.direction;
+        const s = seg.origin.minus(state.position);
 
         const radiusSq = this._radius * this._radius;
-        const rSq = r.getLengthSquared();
+        const rSq = r.lengthSquared;
         if (rSq < radiusSq) {
             out.frac = 0;
-            out.position = seg.origin.clone();
-            out.normal = out.position.subtract(state.position);
+            out.position = new Vector3(seg.origin);
+            out.normal = out.position.minus(state.position);
             out.normal.normalize();
             return true;
         }
 
-        const sDotr = s.dot(r);
-        const sSq = s.getLengthSquared();
+        const sDotr = Vector3.dot(s, r);
+        const sSq = s.lengthSquared;
         const sigma = sDotr * sDotr - rSq * (sSq - radiusSq);
         if (sigma < 0) {
             return false;
@@ -59,14 +59,14 @@ export default class JSphere extends RigidBody {
         const frac = Math.max(lambda1, 0);
         out.frac = frac;
         out.position = seg.getPoint(frac);
-        out.normal = out.position.subtract(state.position);
+        out.normal = out.position.minus(state.position);
         out.normal.normalize();
         return true;
     }
 
     getInertiaProperties(m) {
         const Ixx = 0.4 * m * this._radius * this._radius;
-        return new Matrix44([Ixx, 0, 0, 0, 0, Ixx, 0, 0, 0, 0, Ixx, 0, 0, 0, 0, 1]);
+        return new Matrix4([ Ixx, 0, 0, 0, 0, Ixx, 0, 0, 0, 0, Ixx, 0, 0, 0, 0, 1 ]);
     }
 
     updateBoundingBox() {

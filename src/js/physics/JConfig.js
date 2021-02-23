@@ -1,13 +1,15 @@
 export default {
-    allowedPenetration: 0.001,
-    collToll: 0.005,
-    velThreshold: 0.1,
-    angVelThreshold: 0.5,
-    posThreshold: 0.1,
-    orientThreshold: 0.1,
-    deactivationTime: 0.5,
-    numPenetrationRelaxationTimeSteps: 10,
-    numCollisionIterations: 4,
-    numContactIterations: 4,
-    numConstraintIterations: 4
+    ALLOWED_PENETRATION: 0.001,
+    COLL_TOLL: 0.005,
+    VEL_THRESHOLD: 0.1,
+    ANG_VEL_THRESHOLD: 0.5,
+    POS_THRESHOLD: 0.1,
+    ORIENT_THRESHOLD: 0.1,
+    DEACTIVATION_TIME: 0.5,
+    NUM_PENETRATION_RELAXATION_TIME_STEPS: 10,
+    NUM_COLLISION_ITERATIONS: 4,
+    NUM_CONTACT_ITERATIONS: 4,
+    NUM_CONSTRAINT_ITERATIONS: 4,
+    NUM_TINY: 0.000001,
+    NUM_HUGE: 1000000
 }

@@ -5,7 +5,7 @@ import ResourceLoader, { loadImage } from "./ResourceLoader";
 
 const extractVertexIndex = token => {
     const idx = token.indexOf("/");
-    return (idx === -1) ? token : token.substring(0, idx);
+    return idx === -1 ? token : token.substring(0, idx);
 };
 
 const extractTextureIndex = token => {
@@ -75,8 +75,8 @@ const extractFace = faceData => (model, line, smooth, material) => {
     }
 };
 
-const loadMaterials = (path, matLibName, materials) => {
-    const resourceLoader = new ResourceLoader(path);
+const loadMaterials = (matLibName, materials) => {
+    const resourceLoader = new ResourceLoader();
     resourceLoader.add("material_directives", matLibName);
     resourceLoader.load(function(resources) {
         const directives = resources["material_directives"];
@@ -90,16 +90,16 @@ const loadMaterials = (path, matLibName, materials) => {
                 if (fragmentKey === "newmtl") {
                     key = fragments[1];
                 } else if (fragmentKey === 'map_kd') {
-                    loadImage(path + "/" + fragments[1] + "?buster=1", (image, options) => {
+                    loadImage(resourceLoader.rootPath + "/" + fragments[1] + "?buster=1", (image, options) => {
                         if (materials[options.key]) materials[options.key].image = image;
-                    }, { key: key, name: fragments[1] });
+                    }, { key, name: fragments[1] });
                 }
             }
         }
     });
 };
 
-export default (resourcePath = "", directives) => {
+export default (directives) => {
     const materials = [];
     const model = new ModelFactory();
     let material = new Material();
@@ -112,7 +112,7 @@ export default (resourcePath = "", directives) => {
         switch (type) {
             case 'mtllib':
                 materialLibraryName = line.split(' ')[1].trim();
-                loadMaterials(resourcePath, materialLibraryName, materials);
+                loadMaterials(materialLibraryName, materials);
                 break;
             case "v":
                 const match0 = line.match(/v (.*) (.*) (.*)/);

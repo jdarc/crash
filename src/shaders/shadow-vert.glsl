@@ -6,7 +6,7 @@ uniform mat4 umProj;
 
 varying vec4 vPosition;
 
-void main(void) {
+void main() {
     vPosition = umView * umModel * vec4(aVertexPosition, 1.);
     gl_Position = umProj * vPosition;
 }

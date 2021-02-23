@@ -6,37 +6,17 @@ const { CleanWebpackPlugin } = require('clean-webpack-plugin');
 
 module.exports = {
     entry: './src/js/main.js',
-    output: {
-        filename: '[fullhash].js',
-        path: path.resolve(__dirname, 'dist')
-    },
+    output: { filename: '[fullhash].js', path: path.resolve(__dirname, 'dist') },
     plugins: [
         new CleanWebpackPlugin(),
-        new MiniCssExtractPlugin({
-            filename: '[fullhash].css',
-        }),
-        new HtmlWebpackPlugin({
-            template: "src/index.html",
-            minify: {
-                removeComments: true,
-                collapseWhitespace: true
-            }
-        }),
-        new CopyPlugin({
-            patterns: [
-                {
-                    from: path.resolve(__dirname, 'public'), to: path.resolve(__dirname, 'dist')
-                }
-            ]
-        })
+        new MiniCssExtractPlugin({ filename: '[fullhash].css', }),
+        new HtmlWebpackPlugin({ template: "src/index.html", minify: { removeComments: true, collapseWhitespace: true } }),
+        new CopyPlugin({ patterns: [{ from: path.resolve(__dirname, 'public'), to: path.resolve(__dirname, 'dist') }] })
     ],
     module: {
-        rules: [{
-            test: /\.css$/i,
-            use: [MiniCssExtractPlugin.loader, 'css-loader'],
-        }, {
-            test: /\.glsl$/,
-            use: ['webpack-glsl-loader']
-        }]
+        rules: [
+            { test: /\.css$/i, use: [MiniCssExtractPlugin.loader, 'css-loader'], },
+            { test: /\.glsl$/, use: ['webpack-glsl-loader'] }
+        ]
     }
 };

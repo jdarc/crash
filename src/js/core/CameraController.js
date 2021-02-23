@@ -1,105 +1,93 @@
-import Matrix44 from "./Matrix44";
-import Vector3 from "./Vector3";
-
-const MOVE_FORWARD = 1;
-const MOVE_BACKWARD = 2;
-const MOVE_LEFT = 4;
-const MOVE_RIGHT = 8;
+const MOVE_FORWARD = 0x1;
+const MOVE_BACKWARD = 0x2;
+const MOVE_LEFT = 0x4;
+const MOVE_RIGHT = 0x8;
 
 export default function(camera) {
-    const _camera = camera;
-    let _movementMask = 0;
-    let _lastMouseX = 0;
-    let _lastMouseY = 0;
-    let _currMouseX = 0;
-    let _currMouseY = 0;
-    let _yaw = 0;
-    let _pitch = 0;
-    let _dragging = false;
-    const _rotX = new Matrix44();
-    const _temp = new Vector3();
-    const _side = new Vector3();
-    const _lookAt = new Vector3(_camera.center[0] - _camera.eye[0], _camera.center[1] - _camera.eye[1], _camera.center[2] - _camera.eye[2]).normalize();
+    let movementMask = 0;
+    let lastMouseX = 0;
+    let lastMouseY = 0;
+    let dragging = false;
+    let yaw = 0;
+    let pitch = 0;
 
     return {
         keyUp(code) {
             switch (code) {
                 case 'KeyW':
-                    _movementMask ^= MOVE_FORWARD;
+                    movementMask ^= MOVE_FORWARD;
                     break;
                 case 'KeyS':
-                    _movementMask ^= MOVE_BACKWARD;
+                    movementMask ^= MOVE_BACKWARD;
                     break;
                 case 'KeyA':
-                    _movementMask ^= MOVE_LEFT;
+                    movementMask ^= MOVE_LEFT;
                     break;
                 case 'KeyD':
-                    _movementMask ^= MOVE_RIGHT;
+                    movementMask ^= MOVE_RIGHT;
                     break;
             }
         },
         keyDown(code) {
             switch (code) {
                 case 'KeyW':
-                    _movementMask |= MOVE_FORWARD;
+                    movementMask |= MOVE_FORWARD;
                     break;
                 case 'KeyS':
-                    _movementMask |= MOVE_BACKWARD;
+                    movementMask |= MOVE_BACKWARD;
                     break;
                 case 'KeyA':
-                    _movementMask |= MOVE_LEFT;
+                    movementMask |= MOVE_LEFT;
                     break;
                 case 'KeyD':
-                    _movementMask |= MOVE_RIGHT;
+                    movementMask |= MOVE_RIGHT;
                     break;
             }
         },
         mouseDown() {
-            _dragging = true;
+            dragging = true;
         },
         mouseMove(x, y) {
-            _currMouseX = x;
-            _currMouseY = y;
+            if (dragging) {
+                yaw -= (x - lastMouseX) * 0.005;
+                pitch -= (y - lastMouseY) * 0.005;
+                pitch = Math.max(-1.57, Math.min(1.57, pitch));
+            }
+            lastMouseX = x;
+            lastMouseY = y;
         },
         mouseUp() {
-            _dragging = false;
+            dragging = false;
         },
         update(seconds, speed) {
-            const scaledSpeed = seconds * speed;
+            const scaled = seconds * speed;
 
-            if (_dragging) {
-                const dx = Math.abs(_currMouseX - _lastMouseX) * seconds * 0.25;
-                const dy = Math.abs(_currMouseY - _lastMouseY) * seconds * 0.25;
-                _yaw += _currMouseX < _lastMouseX ? dx : -dx;
-                _pitch += _currMouseY < _lastMouseY ? dy : -dy;
-                _pitch = Math.max(-1.55, Math.min(1.55, _pitch));
-                _rotX.multiply(Matrix44.createRotationAboutY(_yaw), Matrix44.createRotationAboutX(_pitch));
-                _lookAt.setTo(0, 0, -1).transform(_lookAt, _rotX).normalize();
-            }
-            _lastMouseX = _currMouseX;
-            _lastMouseY = _currMouseY;
+            const lookX = -Math.sin(yaw) * Math.cos(pitch);
+            const lookY = Math.sin(pitch);
+            const lookZ = -Math.cos(yaw) * Math.cos(pitch);
 
-            _temp.setTo(_camera.eye[0], _camera.eye[1], _camera.eye[2]);
-            _side.setTo(0, 1, 0).cross(_lookAt, _side).normalize().mul(scaledSpeed);
-
-            if ((_movementMask & MOVE_FORWARD) === MOVE_FORWARD) {
-                _temp.setTo(_temp.x + _lookAt.x * scaledSpeed, _temp.y + _lookAt.y * scaledSpeed, _temp.z + _lookAt.z * scaledSpeed);
+            let [x, y, z] = camera.eye;
+            if ((movementMask & 1) === 1) {
+                x += lookX * scaled;
+                y += lookY * scaled;
+                z += lookZ * scaled;
+            } else if ((movementMask & 2) === 2) {
+                x -= lookX * scaled;
+                y -= lookY * scaled;
+                z -= lookZ * scaled;
             }
 
-            if ((_movementMask & MOVE_BACKWARD) === MOVE_BACKWARD) {
-                _temp.setTo(_temp.x - _lookAt.x * scaledSpeed, _temp.y - _lookAt.y * scaledSpeed, _temp.z - _lookAt.z * scaledSpeed);
+            const scalar = scaled / Math.sqrt(lookZ * lookZ + lookX * lookX);
+            if ((movementMask & 4) === 4) {
+                x += lookZ * scalar;
+                z -= lookX * scalar;
+            } else if ((movementMask & 8) === 8) {
+                x -= lookZ * scalar;
+                z += lookX * scalar;
             }
 
-            if ((_movementMask & MOVE_LEFT) === MOVE_LEFT) {
-                _temp.sub(_side);
-            }
-
-            if ((_movementMask & MOVE_RIGHT) === MOVE_RIGHT) {
-                _temp.add(_side);
-            }
-
-            _camera.moveTo(_temp.x, _temp.y, _temp.z);
-            _camera.lookAt(_temp.x + _lookAt.x, _temp.y + _lookAt.y, _temp.z + _lookAt.z);
+            camera.moveTo(x, y, z);
+            camera.lookAt(x + lookX, y + lookY, z + lookZ);
         }
     }
 };

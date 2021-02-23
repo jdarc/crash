@@ -1,9 +1,6 @@
-import Frustum from "./Frustum";
-
 export default class RasterizerGL {
     constructor(glu) {
         this._glu = glu;
-        this._frustum = new Frustum();
         this._normalMatrix = new Float32Array(9);
         this._program = null;
     }
@@ -11,10 +8,6 @@ export default class RasterizerGL {
     useProgram(program) {
         this._program = program;
         this._program.use();
-    }
-
-    contains(box) {
-        return this._frustum.contains(box);
     }
 
     world(value) {
@@ -36,10 +29,6 @@ export default class RasterizerGL {
         this._program.setNormalMatrix(this._normalMatrix);
     }
 
-    updateFrustum(viewMatrix, projectionMatrix) {
-        this._frustum.transform(viewMatrix, projectionMatrix);
-    }
-
     draw(vertexBuffer, indexBuffer, material) {
         const glu = this._glu;
 
@@ -49,7 +38,7 @@ export default class RasterizerGL {
         vertexBuffer.buffer = vertexBuffer.buffer || glu.createVertexBuffer(vertexBuffer.data);
         this._program.bindVertexBuffer(vertexBuffer.buffer);
 
-        material.texture = material.texture || (material.image && glu.createTexture(material.image));
+        material.texture = material.texture || material.image && glu.createTexture(material.image);
         this._program.bindMaterial(material.texture);
 
         glu.context.drawElements(glu.context.TRIANGLES, indexBuffer.data.length, glu.context.UNSIGNED_SHORT, 0);

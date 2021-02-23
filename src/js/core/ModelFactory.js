@@ -1,16 +1,28 @@
 import Model from "./Model";
 import Material from "./Material";
-import Vector3 from "./Vector3";
-import Vertex from "./Vertex";
 import Mesh from "./Mesh";
 import Buffer from "./Buffer";
 import NormalType from "./NormalType";
+import Vector3 from "../math/Vector3";
 
-const encodeVertexToString = (vertex) => {
+class Vertex {
+    constructor(vx = 0, vy = 0, vz = 0, nx = 0, ny = 0, nz = 0, tu = 0, tv = 0) {
+        this.vx = vx;
+        this.vy = vy;
+        this.vz = vz;
+        this.nx = nx;
+        this.ny = ny;
+        this.nz = nz;
+        this.tu = tu;
+        this.tv = tv;
+    }
+}
+
+const encodeVertexToString = vertex => {
     return [vertex.vx, vertex.vy, vertex.vz, vertex.nx, vertex.ny, vertex.nz, vertex.tu, vertex.tv].join(',');
 }
 
-const decodeVertexFromString = (s) => {
+const decodeVertexFromString = s => {
     const split = s.split(',');
     const vx = parseFloat(split[0]);
     const vy = parseFloat(split[1]);
@@ -38,7 +50,7 @@ const optimizer = function(vertexBuffer, indexBuffer) {
             optVertices.push(decodeVertexFromString(key));
         }
     }
-    return { optVertices, optTriangles };
+    return {optVertices, optTriangles};
 };
 
 const convertVertices = function(vertices) {
@@ -61,9 +73,9 @@ export default function() {
 
     class Triangle {
         constructor(a, b, c) {
-            this.a = { vertex: a, normal: 0, texel: 0 };
-            this.b = { vertex: b, normal: 0, texel: 0 };
-            this.c = { vertex: c, normal: 0, texel: 0 };
+            this.a = {vertex: a, normal: 0, texel: 0};
+            this.b = {vertex: b, normal: 0, texel: 0};
+            this.c = {vertex: c, normal: 0, texel: 0};
             this.normalType = NormalType.Surface;
             this.material = Material.DEFAULT;
             this.surfaceNormal = new Vector3(0, 0, 0)
@@ -139,7 +151,7 @@ export default function() {
     };
 
     const createTriangle = (a, b, c) => {
-        let triangle = new Triangle(a, b, c);
+        const triangle = new Triangle(a, b, c);
         _triangles.push(triangle);
         _currentGroup.push(triangle);
         return triangle;
@@ -175,7 +187,7 @@ export default function() {
         v.ny = normal.y;
         v.nz = normal.z;
         if (_uvCoordinates.length > indexer.texel) {
-            let uvCoord = _uvCoordinates[indexer.texel];
+            const uvCoord = _uvCoordinates[indexer.texel];
             v.tu = uvCoord.x;
             v.tv = uvCoord.y;
         }
@@ -183,44 +195,41 @@ export default function() {
     };
 
     const compileBuffers = optimize => {
-        const meshByMaterial = {};
-        const materialBuckets = {};
+        const meshByMaterial = new Map();
+        const materialBuckets = new Map();
 
         for (let i = 0; i < _triangles.length; i++) {
-            const triangle = _triangles[i];
-            const matId = triangle.material.id;
-            if (!materialBuckets.hasOwnProperty(matId)) {
-                materialBuckets[matId] = [];
-                _materials[matId] = triangle.material;
+            const material = _triangles[i].material;
+            if (!materialBuckets.has(material)) {
+                materialBuckets.set(material, []);
+                _materials[material] = _triangles[i].material;
             }
-            materialBuckets[matId].push(triangle);
+            materialBuckets.get(material).push(_triangles[i]);
         }
 
-        for (let bucket in materialBuckets) {
-            if (materialBuckets.hasOwnProperty(bucket)) {
-                const triangles = materialBuckets[bucket];
-                const triangleCount = triangles.length;
-                const elementCount = triangleCount * 3;
-                let ib = new Uint16Array(elementCount);
-                let vb = new Array(elementCount);
-                let idx = 0;
-                for (let i = 0; i < triangleCount; i++) {
-                    const triangle = triangles[i];
-                    vb[idx] = compileTriangle(triangle, triangle.a);
-                    ib[idx] = idx++;
-                    vb[idx] = compileTriangle(triangle, triangle.b);
-                    ib[idx] = idx++;
-                    vb[idx] = compileTriangle(triangle, triangle.c);
-                    ib[idx] = idx++;
-                }
-                if (optimize) {
-                    const optimized = optimizer(vb, ib);
-                    vb = optimized.optVertices;
-                    ib = optimized.optTriangles;
-                }
-                meshByMaterial[bucket] = new Mesh(new Buffer(convertVertices(vb)), new Buffer(ib));
+        materialBuckets.forEach((val, key) => {
+            const triangles = val;
+            const triangleCount = triangles.length;
+            const elementCount = triangleCount * 3;
+            let ib = new Uint16Array(elementCount);
+            let vb = new Array(elementCount);
+            let idx = 0;
+            for (let i = 0; i < triangleCount; i++) {
+                const triangle = triangles[i];
+                vb[idx] = compileTriangle(triangle, triangle.a);
+                ib[idx] = idx++;
+                vb[idx] = compileTriangle(triangle, triangle.b);
+                ib[idx] = idx++;
+                vb[idx] = compileTriangle(triangle, triangle.c);
+                ib[idx] = idx++;
             }
-        }
+            if (optimize) {
+                const optimized = optimizer(vb, ib);
+                vb = optimized.optVertices;
+                ib = optimized.optTriangles;
+            }
+            meshByMaterial.set(key, new Mesh(new Buffer(convertVertices(vb)), new Buffer(ib)));
+        });
         return meshByMaterial;
     };
 
@@ -229,14 +238,14 @@ export default function() {
             _vertexNormals[i].setTo(0, 0, 0);
         }
 
-        let a = new Vector3(0, 0, 0);
-        let b = new Vector3(0, 0, 0);
+        const a = new Vector3(0, 0, 0);
+        const b = new Vector3(0, 0, 0);
         for (let i = 0; i < _triangles.length; i++) {
-            let triangle = _triangles[i];
+            const triangle = _triangles[i];
             a.copy(_vertices[triangle.b.vertex]).sub(_vertices[triangle.a.vertex]);
             b.copy(_vertices[triangle.c.vertex]).sub(_vertices[triangle.b.vertex]);
 
-            triangle.surfaceNormal.cross(a, b);
+            triangle.surfaceNormal.setTo(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
             triangle.surfaceNormal.normalize();
 
             _vertexNormals[triangle.a.vertex].add(triangle.surfaceNormal);
@@ -248,7 +257,7 @@ export default function() {
             _vertexNormals[i].normalize();
         }
 
-        return Model(compileBuffers(optimize), _materials);
+        return Model(compileBuffers(optimize));
     };
 
     return {

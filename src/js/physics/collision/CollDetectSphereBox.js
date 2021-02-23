@@ -1,5 +1,5 @@
-import JMath3D from "../JMath3D";
-import Vector3 from "../math/Vector3";
+import JConfig from "../JConfig";
+import Vector3 from "../../math/Vector3";
 import CollPointInfo from "./CollPointInfo";
 
 export default class CollDetectSphereBox {
@@ -13,43 +13,34 @@ export default class CollDetectSphereBox {
                 info.body1 = tempBody;
             }
 
-            const sphere = info.body0;
-            const box = info.body1;
-
-            if (!sphere.hitTestObject3D(box)) {
-                return;
-            }
-            if (!sphere.getBoundingBox().overlapTest(box.getBoundingBox())) {
+            if (!info.body0.hitTestObject3D(info.body1) || !info.body0.getBoundingBox().overlapTest(info.body1.getBoundingBox())) {
                 return;
             }
 
-            const oldBoxPoint = [new Vector3()];
-            const newBoxPoint = [new Vector3()];
+            const oldBoxPoint = [ new Vector3() ];
+            const newBoxPoint = [ new Vector3() ];
 
-            const oldDist = box.getDistanceToPoint(box.getOldState(), oldBoxPoint, sphere.getOldState().position);
-            const newDist = box.getDistanceToPoint(box.getCurrState(), newBoxPoint, sphere.getCurrState().position);
-            const _oldBoxPosition = oldBoxPoint[0];
-
-            const oldDepth = sphere.get_radius() - oldDist;
-            const newDepth = sphere.get_radius() - newDist;
+            const oldDist = info.body1.getDistanceToPoint(info.body1.getOldState(), oldBoxPoint, info.body0.getOldState().position);
+            const newDist = info.body1.getDistanceToPoint(info.body1.getCurrState(), newBoxPoint, info.body0.getCurrState().position);
+            const oldDepth = info.body0.radius - oldDist;
+            const newDepth = info.body0.radius - newDist;
             if (Math.max(oldDepth, newDepth) > -collToll) {
                 let dir;
-                if (oldDist < -JMath3D.NUM_TINY) {
-                    dir = _oldBoxPosition.subtract(sphere.getOldState().position).subtract(_oldBoxPosition);
+                if (oldDist < -JConfig.NUM_TINY) {
+                    dir = oldBoxPoint[0].minus(info.body0.getOldState().position).minus(oldBoxPoint[0]);
                     dir.normalize();
-                } else if (oldDist > JMath3D.NUM_TINY) {
-                    dir = sphere.getOldState().position.subtract(_oldBoxPosition);
+                } else if (oldDist > JConfig.NUM_TINY) {
+                    dir = info.body0.getOldState().position.minus(oldBoxPoint[0]);
                     dir.normalize();
                 } else {
-                    dir = sphere.getOldState().position.subtract(box.getOldState().position);
+                    dir = info.body0.getOldState().position.minus(info.body1.getOldState().position);
                     dir.normalize();
                 }
-
                 const collInfo = new CollPointInfo();
-                collInfo.r0 = _oldBoxPosition.subtract(sphere.getOldState().position);
-                collInfo.r1 = _oldBoxPosition.subtract(box.getOldState().position);
+                collInfo.r0 = oldBoxPoint[0].minus(info.body0.getOldState().position);
+                collInfo.r1 = oldBoxPoint[0].minus(info.body1.getOldState().position);
                 collInfo.initialPenetration = oldDepth;
-                collisionFunctor.collisionNotify(info, dir, [collInfo], 1);
+                collisionFunctor.collisionNotify(info, dir, [ collInfo ], 1);
             }
         };
     }

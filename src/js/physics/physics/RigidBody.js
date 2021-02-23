@@ -1,9 +1,8 @@
-import Matrix44 from "../math/Matrix44";
+import Matrix4 from "../../math/Matrix4";
 import PhysicsState from "./PhysicsState";
-import Vector3 from "../math/Vector3";
+import Vector3 from "../../math/Vector3";
 import JAABox from "../geometry/JAABox";
 import PhysicsSystem from "./PhysicsSystem";
-import JMath3D from "../JMath3D";
 import MaterialProperties from "../data/MaterialProperties";
 import JConfig from "../JConfig";
 
@@ -12,8 +11,8 @@ export default class RigidBody {
     constructor() {
         this._id = RigidBody.idCounter++;
         this._material = new MaterialProperties(0, 0);
-        this._bodyInertia = new Matrix44();
-        this._bodyInvInertia = new Matrix44();
+        this._bodyInertia = new Matrix4();
+        this._bodyInvInertia = new Matrix4();
         this._currState = new PhysicsState();
         this._oldState = new PhysicsState();
         this._storeState = new PhysicsState();
@@ -21,11 +20,11 @@ export default class RigidBody {
         this._currRotVelocityAux = new Vector3();
         this._force = new Vector3();
         this._torque = new Vector3();
-        this._invOrientation = new Matrix44;
+        this._invOrientation = new Matrix4;
         this._linVelDamping = new Vector3(0.999, 0.999, 0.999);
         this._rotVelDamping = new Vector3(0.999, 0.999, 0.999);
-        this._maxLinVelocities = new Vector3(JMath3D.NUM_HUGE, JMath3D.NUM_HUGE, JMath3D.NUM_HUGE);
-        this._maxRotVelocities = new Vector3(JMath3D.NUM_HUGE, JMath3D.NUM_HUGE, JMath3D.NUM_HUGE);
+        this._maxLinVelocities = new Vector3(JConfig.NUM_HUGE, JConfig.NUM_HUGE, JConfig.NUM_HUGE);
+        this._maxRotVelocities = new Vector3(JConfig.NUM_HUGE, JConfig.NUM_HUGE, JConfig.NUM_HUGE);
         this._inactiveTime = 0;
         this._isActive = true;
         this._movable = true;
@@ -35,15 +34,15 @@ export default class RigidBody {
         this._nonCollidables = [];
         this._storedPositionForActivation = new Vector3();
         this._bodiesToBeActivatedOnMovement = [];
-        this._lastPositionForDeactivation = this._currState.position.clone();
-        this._lastOrientationForDeactivation = this._currState.orientation.clone();
+        this._lastPositionForDeactivation = new Vector3(this._currState.position);
+        this._lastOrientationForDeactivation = new Matrix4(this._currState.orientation);
         this._type = "Object3D";
-        this._boundingSphere = JMath3D.NUM_HUGE;
+        this._boundingSphere = JConfig.NUM_HUGE;
         this._boundingBox = new JAABox();
         this._mass = 0;
         this._invMass = 0;
-        this._worldInertia = new Matrix44();
-        this._worldInvInertia = new Matrix44();
+        this._worldInertia = new Matrix4();
+        this._worldInvInertia = new Matrix4();
         this._rotationX = 0;
         this._rotationY = 0;
         this._rotationZ = 0;
@@ -115,26 +114,26 @@ export default class RigidBody {
     }
 
     pitch(rot) {
-        const rotationMatrixAxis = new Matrix44().appendRotation(rot, Vector3.X_AXIS);
-        this.setOrientation(this.getCurrState().orientation.clone().append(rotationMatrixAxis));
+        const rotationMatrixAxis = new Matrix4().rotate(rot, new Vector3(1, 0, 0));
+        this.setOrientation(new Matrix4(this.getCurrState().orientation).concatenate(rotationMatrixAxis));
     }
 
     yaw(rot) {
-        const rotationMatrixAxis = new Matrix44().appendRotation(rot, Vector3.Y_AXIS);
-        this.setOrientation(this.getCurrState().orientation.clone().append(rotationMatrixAxis));
+        const rotationMatrixAxis = new Matrix4().rotate(rot, new Vector3(0, 1, 0));
+        this.setOrientation(new Matrix4(this.getCurrState().orientation).concatenate(rotationMatrixAxis));
     }
 
     roll(rot) {
-        const rotationMatrixAxis = new Matrix44().appendRotation(rot, Vector3.Z_AXIS);
-        this.setOrientation(this.getCurrState().orientation.clone().append(rotationMatrixAxis));
+        const rotationMatrixAxis = new Matrix4().rotate(rot, new Vector3(0, 0, 1));
+        this.setOrientation(new Matrix4(this.getCurrState().orientation).concatenate(rotationMatrixAxis));
     }
 
     createRotationMatrix() {
-        const Matrix44 = new Matrix44();
-        Matrix44.appendRotation(this._rotationX, Vector3.X_AXIS);
-        Matrix44.appendRotation(this._rotationY, Vector3.Y_AXIS);
-        Matrix44.appendRotation(this._rotationZ, Vector3.Z_AXIS);
-        return Matrix44;
+        const mat = new Matrix4();
+        mat.rotate(this._rotationX, new Vector3(1, 0, 0));
+        mat.rotate(this._rotationY, new Vector3(0, 1, 0));
+        mat.rotate(this._rotationZ, new Vector3(0, 0, 1));
+        return mat;
     }
 
     setOrientation(orient) {
@@ -225,7 +224,7 @@ export default class RigidBody {
             return;
         }
 
-        const mat = this._currState.orientation._rawData;
+        const mat = this._currState.orientation.data;
         this._torque.x += mat[0] * t.x + mat[1] * t.y + mat[2] * t.z + mat[3];
         this._torque.y += mat[4] * t.x + mat[5] * t.y + mat[6] * t.z + mat[7];
         this._torque.z += mat[8] * t.x + mat[9] * t.y + mat[10] * t.z + mat[11];
@@ -258,10 +257,10 @@ export default class RigidBody {
             return;
         }
 
-        this._currState.orientation.transformSelfVector(f);
-        this._currState.orientation.transformSelfVector(p);
+        f.transform(this._currState.orientation);
+        p.transform(this._currState.orientation);
 
-        this.addWorldForce(f, this._currState.position.add(p));
+        this.addWorldForce(f, this._currState.position.plus(p));
 
         this.setActive();
     }
@@ -287,7 +286,7 @@ export default class RigidBody {
         const rotImplsX = posY * impulse.z - posZ * impulse.y;
         const rotImplsY = posZ * impulse.x - posX * impulse.z;
         const rotImplsZ = posX * impulse.y - posY * impulse.x;
-        const mat = this._worldInvInertia._rawData;
+        const mat = this._worldInvInertia.data;
         this._currState.rotVelocity.x += mat[0] * rotImplsX + mat[1] * rotImplsY + mat[2] * rotImplsZ + mat[3] || 0;
         this._currState.rotVelocity.y += mat[4] * rotImplsX + mat[5] * rotImplsY + mat[6] * rotImplsZ + mat[7] || 0;
         this._currState.rotVelocity.z += mat[8] * rotImplsX + mat[9] * rotImplsY + mat[10] * rotImplsZ + mat[11] || 0;
@@ -308,7 +307,7 @@ export default class RigidBody {
         const rotImplsX = posY * impulse.z - posZ * impulse.y;
         const rotImplsY = posZ * impulse.x - posX * impulse.z;
         const rotImplsZ = posX * impulse.y - posY * impulse.x;
-        const mat = this._worldInvInertia._rawData;
+        const mat = this._worldInvInertia.data;
         this._currRotVelocityAux.x += mat[0] * rotImplsX + mat[1] * rotImplsY + mat[2] * rotImplsZ + mat[3] || 0;
         this._currRotVelocityAux.y += mat[4] * rotImplsX + mat[5] * rotImplsY + mat[6] * rotImplsZ + mat[7] || 0;
         this._currRotVelocityAux.z += mat[8] * rotImplsX + mat[9] * rotImplsY + mat[10] * rotImplsZ + mat[11] || 0;
@@ -327,7 +326,7 @@ export default class RigidBody {
         const rotImpulseX = delta.y * impulse.z - delta.z * impulse.y || 0;
         const rotImpulseY = delta.z * impulse.x - delta.x * impulse.z || 0;
         const rotImpulseZ = delta.x * impulse.y - delta.y * impulse.x || 0;
-        const mat = this._worldInvInertia._rawData;
+        const mat = this._worldInvInertia.data;
         this._currState.rotVelocity.x += mat[0] * rotImpulseX + mat[1] * rotImpulseY + mat[2] * rotImpulseZ + mat[3];
         this._currState.rotVelocity.y += mat[4] * rotImpulseX + mat[5] * rotImpulseY + mat[6] * rotImpulseZ + mat[7];
         this._currState.rotVelocity.z += mat[8] * rotImpulseX + mat[9] * rotImpulseY + mat[10] * rotImpulseZ + mat[11];
@@ -346,7 +345,7 @@ export default class RigidBody {
         const rotImpulseX = delta.y * impulse.z - delta.z * impulse.y || 0;
         const rotImpulseY = delta.z * impulse.x - delta.x * impulse.z || 0;
         const rotImpulseZ = delta.x * impulse.y - delta.y * impulse.x || 0;
-        const mat = this._worldInvInertia._rawData;
+        const mat = this._worldInvInertia.data;
         this._currRotVelocityAux.x += mat[0] * rotImpulseX + mat[1] * rotImpulseY + mat[2] * rotImpulseZ + mat[3];
         this._currRotVelocityAux.y += mat[4] * rotImpulseX + mat[5] * rotImpulseY + mat[6] * rotImpulseZ + mat[7];
         this._currRotVelocityAux.z += mat[8] * rotImpulseX + mat[9] * rotImpulseY + mat[10] * rotImpulseZ + mat[11];
@@ -365,7 +364,7 @@ export default class RigidBody {
         const rx = this._torque.x * dt || 0;
         const ry = this._torque.y * dt || 0;
         const rz = this._torque.z * dt || 0;
-        const mat = this._worldInvInertia._rawData;
+        const mat = this._worldInvInertia.data;
         this._currState.rotVelocity.x += mat[0] * rx + mat[1] * ry + mat[2] * rz + mat[3];
         this._currState.rotVelocity.y += mat[4] * rx + mat[5] * ry + mat[6] * rz + mat[7];
         this._currState.rotVelocity.z += mat[8] * rx + mat[9] * ry + mat[10] * rz + mat[11];
@@ -375,21 +374,20 @@ export default class RigidBody {
         if (!this._movable || !this._isActive) {
             return;
         }
-        let angMomBefore = this._currState.rotVelocity.clone();
-        angMomBefore = this._worldInertia.transformVector(angMomBefore);
-        this._currState.position.setTo(this._currState.position.add(new Vector3(this._currState.linVelocity.x * dt,
+        const angMomBefore = new Vector3(this._currState.rotVelocity).transform(this._worldInertia);
+        this._currState.position.setTo(this._currState.position.plus(new Vector3(this._currState.linVelocity.x * dt,
             this._currState.linVelocity.y * dt,
             this._currState.linVelocity.z * dt)));
-        const dir = this._currState.rotVelocity.clone();
-        let ang = dir.getLength();
+        const dir = new Vector3(this._currState.rotVelocity);
+        let ang = dir.length;
         if (ang > 0) {
             dir.normalize();
             ang *= dt;
-            const rot = new Matrix44().appendRotation(ang, new Vector3(dir.x, dir.y, dir.z));
-            this._currState.orientation = new Matrix44().multiply(rot, this._currState.orientation);
+            const rot = new Matrix4().rotate(ang, new Vector3(dir.x, dir.y, dir.z));
+            this._currState.orientation = new Matrix4().copy(this._currState.orientation).concatenate(rot);
             this.updateInertia();
         }
-        angMomBefore = this._worldInvInertia.transformVector(angMomBefore);
+        angMomBefore.transform(this._worldInvInertia);
         this._currState.rotVelocity.copy(angMomBefore);
     }
 
@@ -402,7 +400,7 @@ export default class RigidBody {
 
         const ga = this._gravityAxis;
         if (ga !== -1) {
-            const arr = [this._currLinVelocityAux.x, this._currLinVelocityAux.y, this._currLinVelocityAux.z];
+            const arr = [ this._currLinVelocityAux.x, this._currLinVelocityAux.y, this._currLinVelocityAux.z ];
             arr[(ga + 1) % 3] *= 0.1;
             arr[(ga + 2) % 3] *= 0.1;
             this._currLinVelocityAux.x = arr[0];
@@ -414,11 +412,11 @@ export default class RigidBody {
         this._currState.position.y += (this._currState.linVelocity.y + this._currLinVelocityAux.y) * dt;
         this._currState.position.z += (this._currState.linVelocity.z + this._currLinVelocityAux.z) * dt;
 
-        const dir = this._currState.rotVelocity.add(this._currRotVelocityAux);
-        const ang = dir.getLength() * 180 / Math.PI;
+        const dir = this._currState.rotVelocity.plus(this._currRotVelocityAux);
+        const ang = dir.length * 180 / Math.PI;
         if (ang > 0) {
             dir.normalize();
-            this._currState.orientation.appendRotation(ang * dt, dir);
+            this._currState.orientation.rotate(ang * dt, dir);
             this.updateInertia();
         }
 
@@ -434,15 +432,15 @@ export default class RigidBody {
         const px = this._currState.position.x - this._lastPositionForDeactivation.x;
         const py = this._currState.position.y - this._lastPositionForDeactivation.y;
         const pz = this._currState.position.z - this._lastPositionForDeactivation.z;
-        if (Math.sqrt(px * px + py * py + pz * pz) > JConfig.posThreshold) {
+        if (Math.sqrt(px * px + py * py + pz * pz) > JConfig.POS_THRESHOLD) {
             this._lastPositionForDeactivation.copy(this._currState.position);
             this._inactiveTime = 0;
             return;
         }
-        const ot = JConfig.orientThreshold * JConfig.orientThreshold;
+        const ot = JConfig.ORIENT_THRESHOLD * JConfig.ORIENT_THRESHOLD;
 
-        const ar = this._currState.orientation.getData();
-        const br = this._lastOrientationForDeactivation.getData();
+        const ar = this._currState.orientation.data;
+        const br = this._lastOrientationForDeactivation.data;
         const col0x = ar[0] - br[0];
         const col0y = ar[4] - br[4];
         const col0z = ar[8] - br[8];
@@ -463,7 +461,7 @@ export default class RigidBody {
             return;
         }
         this._inactiveTime += dt;
-        if (this._inactiveTime > JConfig.deactivationTime) {
+        if (this._inactiveTime > JConfig.DEACTIVATION_TIME) {
             this._lastPositionForDeactivation.copy(this._currState.position);
             this._lastOrientationForDeactivation.copy(this._currState.orientation);
             this.setInactive();
@@ -494,9 +492,9 @@ export default class RigidBody {
         this.updateGravity(physicsSystem.getGravity(), physicsSystem.getMainGravityAxis());
     }
 
-    setInertia(Matrix44) {
-        this._bodyInertia.copy(Matrix44);
-        this._bodyInvInertia.copy(Matrix44);
+    setInertia(m) {
+        this._bodyInertia.copy(m);
+        this._bodyInvInertia.copy(m);
         this._bodyInvInertia.invert();
         this.updateInertia();
     }
@@ -505,11 +503,11 @@ export default class RigidBody {
         this._invOrientation.copy(this._currState.orientation);
         this._invOrientation.transpose();
 
-        this._worldInertia.multiply(this._currState.orientation, this._bodyInertia);
-        this._worldInertia.multiply(this._invOrientation, this._worldInertia);
+        this._worldInertia.copy(this._bodyInertia).concatenate(this._currState.orientation);
+        this._worldInertia.copy(this._worldInertia).concatenate(this._invOrientation);
 
-        this._worldInvInertia.multiply(this._currState.orientation, this._bodyInvInertia);
-        this._worldInvInertia.multiply(this._invOrientation, this._worldInvInertia);
+        this._worldInvInertia.copy(this._bodyInvInertia).concatenate(this._currState.orientation);
+        this._worldInvInertia.copy(this._worldInvInertia).concatenate(this._invOrientation);
     }
 
     getMovable() {
@@ -546,27 +544,27 @@ export default class RigidBody {
 
     setInactive() {
         if (this._movable) {
-            this._inactiveTime = JConfig.deactivationTime;
+            this._inactiveTime = JConfig.DEACTIVATION_TIME;
             this._isActive = false;
         }
     }
 
     getVelocity(relPos) {
-        return this._currState.linVelocity.add(this._currState.rotVelocity.cross(relPos));
+        return this._currState.linVelocity.plus(Vector3.cross(this._currState.rotVelocity, relPos));
     }
 
     getVelocityAux(relPos) {
-        return this._currLinVelocityAux.add(this._currRotVelocityAux.cross(relPos));
+        return this._currLinVelocityAux.plus(Vector3.cross(this._currRotVelocityAux, relPos));
     }
 
     getShouldBeActive() {
-        return this._currState.linVelocity.getLength() > JConfig.velThreshold ||
-            this._currState.rotVelocity.getLength() > JConfig.angVelThreshold;
+        return this._currState.linVelocity.length > JConfig.VEL_THRESHOLD ||
+            this._currState.rotVelocity.length > JConfig.ANG_VEL_THRESHOLD;
     }
 
     getShouldBeActiveAux() {
-        return this._currLinVelocityAux.getLength() > JConfig.velThreshold ||
-            this._currRotVelocityAux.getLength() > JConfig.angVelThreshold;
+        return this._currLinVelocityAux.length > JConfig.VEL_THRESHOLD ||
+            this._currRotVelocityAux.length > JConfig.ANG_VEL_THRESHOLD;
     }
 
     dampForDeactivation() {
@@ -583,7 +581,7 @@ export default class RigidBody {
         this._currRotVelocityAux.y *= this._rotVelDamping.y;
         this._currRotVelocityAux.z *= this._rotVelDamping.z;
         const r = 0.5;
-        const frac = this._inactiveTime / JConfig.deactivationTime;
+        const frac = this._inactiveTime / JConfig.DEACTIVATION_TIME;
         if (frac < r) {
             return;
         }
@@ -593,8 +591,8 @@ export default class RigidBody {
         } else if (scale > 1) {
             scale = 1;
         }
-        this._currState.linVelocity.scaleBy(scale);
-        this._currState.rotVelocity.scaleBy(scale);
+        this._currState.linVelocity.scale(scale);
+        this._currState.rotVelocity.scale(scale);
     }
 
     doMovementActivations(physicsSystem) {
@@ -605,7 +603,7 @@ export default class RigidBody {
         const px = this._currState.position.x - this._storedPositionForActivation.x;
         const py = this._currState.position.y - this._storedPositionForActivation.y;
         const pz = this._currState.position.z - this._storedPositionForActivation.z;
-        if (Math.sqrt(px * px + py * py + pz * pz) < JConfig.posThreshold) {
+        if (Math.sqrt(px * px + py * py + pz * pz) < JConfig.POS_THRESHOLD) {
             return;
         }
         let i = 0;
@@ -643,7 +641,7 @@ export default class RigidBody {
     }
 
     getInertiaProperties() {
-        return new Matrix44();
+        return new Matrix4();
     }
 
     updateBoundingBox() {

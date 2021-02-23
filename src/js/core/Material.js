@@ -1,11 +1,18 @@
-let idd = 0;
+let uid = 0;
 
-export default class Material {
-    constructor() {
-        this.id = idd++;
-        this.image = null;
-        this.texture = null;
+const Material = function() {
+    const id = uid++;
+
+    this.image = null;
+    this.texture = null;
+
+    return {
+        get id() {
+            return id;
+        }
     }
-}
+};
 
 Material.DEFAULT = new Material()
+
+export default Material

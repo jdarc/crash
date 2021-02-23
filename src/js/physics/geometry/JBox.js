@@ -1,22 +1,23 @@
 import RigidBody from "../physics/RigidBody";
-import Matrix44 from "../math/Matrix44";
-import Vector3 from "../math/Vector3";
-import JMath3D from "../JMath3D";
+import Matrix4 from "../../math/Matrix4";
+import Vector3 from "../../math/Vector3";
+import JConfig from "../JConfig";
 import EdgeData from "../data/EdgeData";
 import SpanData from "../data/SpanData";
 
 export default class JBox extends RigidBody {
     constructor(width, depth, height) {
         super();
-        this._edges = [new EdgeData(0, 1), new EdgeData(0, 2), new EdgeData(0, 6),
+        this._edges = [
+            new EdgeData(0, 1), new EdgeData(0, 2), new EdgeData(0, 6),
             new EdgeData(2, 3), new EdgeData(2, 4), new EdgeData(6, 7),
             new EdgeData(6, 4), new EdgeData(1, 3), new EdgeData(1, 7),
-            new EdgeData(3, 5), new EdgeData(7, 5), new EdgeData(4, 5)];
+            new EdgeData(3, 5), new EdgeData(7, 5), new EdgeData(4, 5)
+        ];
         this._type = "BOX";
-        this._centre = new Vector3;
         this._sideLengths = new Vector3(width, height, depth);
         this._halfSideLength = new Vector3;
-        this._boundingSphere = 0.5 * this._sideLengths.getLength();
+        this._boundingSphere = 0.5 * this._sideLengths.length;
         this._points = [];
         this._cornerPoints = [];
         this.initPoint();
@@ -48,7 +49,7 @@ export default class JBox extends RigidBody {
 
     setSideLengths(size) {
         this._sideLengths.copy(size);
-        this._boundingSphere = 0.5 * this._sideLengths.getLength();
+        this._boundingSphere = 0.5 * this._sideLengths.length;
         this.initPoint();
         this.setInertia(this.getInertiaProperties(this.getMass()));
         this.setActive();
@@ -63,15 +64,6 @@ export default class JBox extends RigidBody {
         return this._edges;
     }
 
-    getVolume() {
-        return this._sideLengths.x * this._sideLengths.y * this._sideLengths.z;
-    }
-
-    getSurfaceArea() {
-        return 2 * (this._sideLengths.x * this._sideLengths.y + this._sideLengths.x * this._sideLengths.z +
-            this._sideLengths.y * this._sideLengths.z);
-    }
-
     getHalfSideLengths() {
         this._halfSideLength.setTo(this._sideLengths.x * 0.5, this._sideLengths.y * 0.5, this._sideLengths.z * 0.5);
         return this._halfSideLength;
@@ -79,11 +71,11 @@ export default class JBox extends RigidBody {
 
     getSpan(axis) {
         const cols = this.getCurrState().getOrientationCols();
-        const s = Math.abs(axis.dot(cols[0])) * (0.5 * this._sideLengths.x);
-        const u = Math.abs(axis.dot(cols[1])) * (0.5 * this._sideLengths.y);
-        const d = Math.abs(axis.dot(cols[2])) * (0.5 * this._sideLengths.z);
+        const s = Math.abs(Vector3.dot(axis, cols[0])) * (0.5 * this._sideLengths.x);
+        const u = Math.abs(Vector3.dot(axis, cols[1])) * (0.5 * this._sideLengths.y);
+        const d = Math.abs(Vector3.dot(axis, cols[2])) * (0.5 * this._sideLengths.z);
         const r = s + u + d;
-        const p = this.getCurrState().position.dot(axis);
+        const p = Vector3.dot(this.getCurrState().position, axis);
         const obj = new SpanData();
         obj.min = p - r;
         obj.max = p + r;
@@ -94,7 +86,7 @@ export default class JBox extends RigidBody {
         const x = state.position.x;
         const y = state.position.y;
         const z = state.position.z;
-        const data = state.orientation.getData();
+        const data = state.orientation.data;
         const dest0 = data[0] + x * data[12];
         const dest1 = data[1] + x * data[13];
         const dest2 = data[2] + x * data[14];
@@ -121,24 +113,18 @@ export default class JBox extends RigidBody {
     }
 
     getCornerPointsInBoxSpace(thisState, boxState) {
-        let max, orient, transform;
-        const points = this._points;
+        const max = new Matrix4(boxState.orientation).transpose();
+        const pos = thisState.position.minus(boxState.position).transform(max);
 
-        max = boxState.orientation.clone();
-        max.transpose();
-        let pos = thisState.position.subtract(boxState.position);
-        pos = max.transformVector(pos);
+        const orient = new Matrix4(thisState.orientation).concatenate(max);
+        let transform = new Matrix4([ 1, 0, 0, pos.x, 0, 1, 0, pos.y, 0, 0, 1, pos.z, 0, 0, 0, 1 ]);
+        transform = new Matrix4(orient).concatenate(transform);
 
-        orient = thisState.orientation.clone().append(max);
-
-        transform = new Matrix44([1, 0, 0, pos.x, 0, 1, 0, pos.y, 0, 0, 1, pos.z, 0, 0, 0, 1]);
-        transform = orient.clone().append(transform);
-
-        const arr = new Array(points.length);
+        const arr = new Array(this._points.length);
         let i = 0;
-        const len = points.length;
+        const len = this._points.length;
         for (; i < len; ++i) {
-            arr[i] = transform.transformVector(points[i]);
+            arr[i] = new Vector3(this._points[i]).transform(transform);
         }
         return arr;
     }
@@ -147,67 +133,50 @@ export default class JBox extends RigidBody {
         let _closestBoxPoint, halfSideLengths;
         let delta = 0, sqDistance = 0;
 
-        _closestBoxPoint = point.subtract(state.position);
+        _closestBoxPoint = point.minus(state.position);
 
-        const mat = state.orientation.clone();
-        mat.transpose();
-        _closestBoxPoint = mat.transformVector(_closestBoxPoint);
+        const mat = new Matrix4(state.orientation).transpose();
+        _closestBoxPoint = new Vector3(_closestBoxPoint).transform(mat);
 
         halfSideLengths = this.getHalfSideLengths();
 
         if (_closestBoxPoint.x < -halfSideLengths.x) {
             delta = _closestBoxPoint.x + halfSideLengths.x;
-            sqDistance += (delta * delta);
+            sqDistance += delta * delta;
             _closestBoxPoint.x = -halfSideLengths.x;
         } else if (_closestBoxPoint.x > halfSideLengths.x) {
             delta = _closestBoxPoint.x - halfSideLengths.x;
-            sqDistance += (delta * delta);
+            sqDistance += delta * delta;
             _closestBoxPoint.x = halfSideLengths.x;
         }
 
         if (_closestBoxPoint.y < -halfSideLengths.y) {
             delta = _closestBoxPoint.y + halfSideLengths.y;
-            sqDistance += (delta * delta);
+            sqDistance += delta * delta;
             _closestBoxPoint.y = -halfSideLengths.y;
         } else if (_closestBoxPoint.y > halfSideLengths.y) {
             delta = _closestBoxPoint.y - halfSideLengths.y;
-            sqDistance += (delta * delta);
+            sqDistance += delta * delta;
             _closestBoxPoint.y = halfSideLengths.y;
         }
 
         if (_closestBoxPoint.z < -halfSideLengths.z) {
             delta = _closestBoxPoint.z + halfSideLengths.z;
-            sqDistance += (delta * delta);
+            sqDistance += delta * delta;
             _closestBoxPoint.z = -halfSideLengths.z;
         } else if (_closestBoxPoint.z > halfSideLengths.z) {
-            delta = (_closestBoxPoint.z - halfSideLengths.z);
-            sqDistance += (delta * delta);
+            delta = _closestBoxPoint.z - halfSideLengths.z;
+            sqDistance += delta * delta;
             _closestBoxPoint.z = halfSideLengths.z;
         }
-        _closestBoxPoint = state.orientation.transformVector(_closestBoxPoint);
-        closestBoxPoint[0] = state.position.add(_closestBoxPoint);
+        _closestBoxPoint = _closestBoxPoint.transform(state.orientation);
+        closestBoxPoint[0] = state.position.plus(_closestBoxPoint);
         return sqDistance;
 
     }
 
     getDistanceToPoint(state, closestBoxPoint, point) {
         return Math.sqrt(this.getSqDistanceToPoint(state, closestBoxPoint, point));
-    }
-
-    pointIntersect(pos) {
-        let p, h, dirVec;
-
-        p = pos.subtract(this.getCurrState().position);
-        h = new Vector3(this._sideLengths.x * 0.5, this._sideLengths.y * 0.5, this._sideLengths.z * 0.5);
-        const cols = this.getCurrState().getOrientationCols();
-        for (let dir = 0; dir < 3; dir++) {
-            dirVec = cols[dir].clone();
-            dirVec.normalize();
-            if (Math.abs(dirVec.dot(p)) > [h.x, h.y, h.z][dir] + JMath3D.NUM_TINY) {
-                return false;
-            }
-        }
-        return true;
     }
 
     segmentIntersect(out, seg, state) {
@@ -217,22 +186,22 @@ export default class JBox extends RigidBody {
         out.normal = new Vector3();
         let dirMin = 0;
         let dirMax = 0;
-        let frac = JMath3D.NUM_HUGE;
-        let min = -JMath3D.NUM_HUGE;
-        let max = JMath3D.NUM_HUGE;
-        let p = state.position.subtract(seg.origin);
-        let h = new Vector3(this._sideLengths.x * 0.5, this._sideLengths.y * 0.5, this._sideLengths.z * 0.5);
+        let frac = JConfig.NUM_HUGE;
+        let min = -JConfig.NUM_HUGE;
+        let max = JConfig.NUM_HUGE;
+        const p = state.position.minus(seg.origin);
+        const h = new Vector3(this._sideLengths.x * 0.5, this._sideLengths.y * 0.5, this._sideLengths.z * 0.5);
         const orientationCol = state.getOrientationCols();
-        const directionVectorArray = [h.x, h.y, h.z];
+        const directionVectorArray = [ h.x, h.y, h.z ];
         for (dir = 0; dir < 3; dir++) {
-            let directionVectorNumber = directionVectorArray[dir];
-            let e = orientationCol[dir].dot(p);
-            let f = orientationCol[dir].dot(seg.delta);
-            if (Math.abs(f) > JMath3D.NUM_TINY) {
+            const directionVectorNumber = directionVectorArray[dir];
+            const e = Vector3.dot(orientationCol[dir], p);
+            const f = Vector3.dot(orientationCol[dir], seg.direction);
+            if (Math.abs(f) > JConfig.NUM_TINY) {
                 let t1 = (e + directionVectorNumber) / f;
                 let t2 = (e - directionVectorNumber) / f;
                 if (t1 > t2) {
-                    let t = t1;
+                    const t = t1;
                     t1 = t2;
                     t2 = t;
                 }
@@ -266,12 +235,12 @@ export default class JBox extends RigidBody {
             frac = 0;
         }
 
-        if (frac > 1 - JMath3D.NUM_TINY) {
+        if (frac > 1 - JConfig.NUM_TINY) {
             return false;
         }
         out.frac = frac;
         out.position = seg.getPoint(frac);
-        if (orientationCol[dir].dot(seg.delta) < 0) {
+        if (Vector3.dot(orientationCol[dir], seg.direction) < 0) {
             out.normal = new Vector3(orientationCol[dir].x * -1,
                 orientationCol[dir].y * -1,
                 orientationCol[dir].z * -1);
@@ -286,7 +255,7 @@ export default class JBox extends RigidBody {
         const x = this._sideLengths.x;
         const y = this._sideLengths.y;
         const z = this._sideLengths.z;
-        return new Matrix44([m12 * (y * y + z * z), 0, 0, 0, 0, m12 * (x * x + z * z), 0, 0, 0, 0, m12 * (x * x + y * y), 0, 0, 0, 0, 1])
+        return new Matrix4([ m12 * (y * y + z * z), 0, 0, 0, 0, m12 * (x * x + z * z), 0, 0, 0, 0, m12 * (x * x + y * y), 0, 0, 0, 0, 1 ])
     }
 
     updateBoundingBox() {

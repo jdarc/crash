@@ -5,20 +5,22 @@ export const loadImage = (src, callback, options) => {
     return img;
 };
 
-export default function(rootResourcePath) {
+export default function(rootPath = "./data") {
     const workload = [];
     const resources = [];
 
     return {
+        get rootPath() {
+            return rootPath;
+        },
         add(key, url) {
-            workload.push({ key: key, url: url });
+            workload.push({ key, url });
         },
         load(callback) {
             const counter = new Int32Array(2);
             counter[1] = workload.length;
-            let i = 0;
             const len = workload.length;
-            for (; i < len; ++i) {
+            for (let i = 0; i < len; ++i) {
                 const req = new XMLHttpRequest();
                 req.resourceKey = workload[i].key;
                 req.onreadystatechange = function() {
@@ -29,7 +31,7 @@ export default function(rootResourcePath) {
                         }
                     }
                 };
-                req.open("GET", rootResourcePath + "/" + workload[i].url, true);
+                req.open("GET", rootPath + "/" + workload[i].url, true);
                 req.send(null);
             }
         }

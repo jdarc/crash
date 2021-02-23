@@ -6,10 +6,6 @@ export default class JChassis extends JBox {
         this._car = car;
     }
 
-    get_car() {
-        return this._car;
-    }
-
     addExternalForces(dt) {
         this.clearForces();
         this.addGravityToExternalForce();

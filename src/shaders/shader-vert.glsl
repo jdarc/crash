@@ -16,7 +16,7 @@ varying vec3 vWorldNormal;
 varying vec2 vUv;
 varying vec4 vPosition;
 
-void main(void) {
+void main() {
     vUv = aTextureCoord;
     vWorldNormal = normalize(umNorm * aVertexNormal);
     vWorldVertex = umModel * vec4(aVertexPosition, 1.0);
